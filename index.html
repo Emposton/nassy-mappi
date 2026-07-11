@@ -12,15 +12,16 @@
     background:white; padding:10px; border-radius:8px;
     font-family:sans-serif; box-shadow:0 0 10px rgba(0,0,0,0.2);
     z-index:9999;
-    width:150px;
+    width:200px;
   }
 </style>
 </head>
 <body>
 
 <div class="infoBox" id="infoBox">
-  Tuuli ladataan...<br>
-  Nopeus: 0 km/h
+  Nopeus: 0 km/h<br>
+  Reitti: valitse 2 pistettä<br>
+  (1. napautus = Mistä, 2. napautus = Minne)
 </div>
 
 <div id="map"></div>
@@ -30,58 +31,83 @@
 // Kartta
 var map = L.map('map').setView([61.507, 23.760], 12);
 
-// Taustakartta
+// Peruskartta
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18
 }).addTo(map);
+
+// SYVYYSKARTTA (OpenSeaMap)
+L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  opacity: 0.8
+}).addTo(map);
+
+// SYVYYSVARJOSTUS (OpenDepth)
+L.tileLayer('https://tiles.openseamap.org/bathymetry/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  opacity: 0.6
+}).addTo(map);
+
+// Reittipisteet
+var startPoint = null;
+var endPoint = null;
+
+// Reittiviiva
+var autoRoute = L.polyline([], {color: 'blue', weight: 4}).addTo(map);
+
+// Klikkaus: valitse Mistä ja Minne
+map.on('click', function(e){
+  if (!startPoint) {
+    startPoint = e.latlng;
+  } else if (!endPoint) {
+    endPoint = e.latlng;
+    calculateRoute();
+  } else {
+    // Reset
+    startPoint = e.latlng;
+    endPoint = null;
+    autoRoute.setLatLngs([]);
+  }
+  updateInfoBox(lastSpeed);
+});
+
+// Reittilaskenta (suora väyläviiva)
+function calculateRoute(){
+  if (!startPoint || !endPoint) return;
+
+  var route = [
+    [startPoint.lat, startPoint.lng],
+    [endPoint.lat, endPoint.lng]
+  ];
+
+  autoRoute.setLatLngs(route);
+}
 
 // GPS sijainti + nopeus
 map.locate({setView:true, maxZoom:14, watch:true});
 var marker = L.marker([0,0]).addTo(map);
 
+var lastSpeed = 0;
+
 map.on('locationfound', function(e){
   marker.setLatLng(e.latlng);
 
-  // Nopeus m/s → km/h
-  let speed = 0;
   if (e.speed !== null) {
-    speed = (e.speed * 3.6).toFixed(1); 
+    lastSpeed = (e.speed * 3.6).toFixed(1);
   }
 
-  updateInfoBox(speed);
+  updateInfoBox(lastSpeed);
 });
 
-// Päivitä infoBox
+// InfoBox päivitys
 function updateInfoBox(speed){
   const box = document.getElementById("infoBox");
-  box.innerHTML = 
-    "Tuuli: " + currentWind + "<br>" +
-    "Nopeus: " + speed + " km/h";
+  box.innerHTML =
+    "Nopeus: " + speed + " km/h<br>" +
+    "Reitti: " + (startPoint ? "Mistä OK" : "valitse") +
+    (endPoint ? ", Minne OK" : "") + "<br>" +
+    "(Napauta karttaa 2 kertaa)";
 }
-
-// Tuulitiedot FMI
-let currentWind = "ladataan...";
-
-async function fetchWind(){
-  const url = "https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::observations::weather::simple&fmisid=101004"; 
-  const res = await fetch(url);
-  const text = await res.text();
-  const speedMatch = text.match(/ws_10min" value="(.+?)"/);
-  const dirMatch = text.match(/wd_10min" value="(.+?)"/);
-
-  if(speedMatch && dirMatch){
-    const speed = speedMatch[1];
-    const dir = dirMatch[1];
-    currentWind = speed + " m/s (" + dir + "°)";
-  } else {
-    currentWind = "ei dataa";
-  }
-
-  updateInfoBox(0);
-}
-
-fetchWind();
-setInterval(fetchWind, 60000);
 </script>
 
 </body>
