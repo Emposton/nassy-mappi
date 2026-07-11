@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Näsijärvi Kartta</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+  body, html { margin:0; padding:0; height:100%; }
+  #map { height:100%; width:100%; }
+  .windBox {
+    position:absolute; top:10px; left:10px;
+    background:white; padding:10px; border-radius:8px;
+    font-family:sans-serif; box-shadow:0 0 10px rgba(0,0,0,0.2);
+    z-index:9999;
+  }
+</style>
+</head>
+<body>
+
+<div class="windBox" id="windInfo">Tuuli ladataan...</div>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+// Kartta
+var map = L.map('map').setView([61.507, 23.760], 12);
+
+// Taustakartta
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18
+}).addTo(map);
+
+// GPS sijainti
+map.locate({setView:true, maxZoom:14, watch:true});
+var marker = L.marker([0,0]).addTo(map);
+
+map.on('locationfound', function(e){
+  marker.setLatLng(e.latlng);
+});
+
+// FMI tuuli
+async function fetchWind(){
+  const url = "https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::observations::weather::simple&fmisid=101004"; 
+  const res = await fetch(url);
+  const text = await res.text();
+  const speedMatch = text.match(/ws_10min" value="(.+?)"/);
+  const dirMatch = text.match(/wd_10min" value="(.+?)"/);
+
+  if(speedMatch && dirMatch){
+    const speed = speedMatch[1];
+    const dir = dirMatch[1];
+    document.getElementById("windInfo").innerHTML =
+      "Tuuli: " + speed + " m/s<br>Suunta: " + dir + "°";
+  } else {
+    document.getElementById("windInfo").innerHTML = "Tuulitietoa ei saatavilla";
+  }
+}
+fetchWind();
+setInterval(fetchWind, 60000);
+</script>
+
+</body>
+</html>
