@@ -7,17 +7,22 @@
 <style>
   body, html { margin:0; padding:0; height:100%; }
   #map { height:100%; width:100%; }
-  .windBox {
+  .infoBox {
     position:absolute; top:10px; left:10px;
     background:white; padding:10px; border-radius:8px;
     font-family:sans-serif; box-shadow:0 0 10px rgba(0,0,0,0.2);
     z-index:9999;
+    width:150px;
   }
 </style>
 </head>
 <body>
 
-<div class="windBox" id="windInfo">Tuuli ladataan...</div>
+<div class="infoBox" id="infoBox">
+  Tuuli ladataan...<br>
+  Nopeus: 0 km/h
+</div>
+
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -30,15 +35,33 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18
 }).addTo(map);
 
-// GPS sijainti
+// GPS sijainti + nopeus
 map.locate({setView:true, maxZoom:14, watch:true});
 var marker = L.marker([0,0]).addTo(map);
 
 map.on('locationfound', function(e){
   marker.setLatLng(e.latlng);
+
+  // Nopeus m/s → km/h
+  let speed = 0;
+  if (e.speed !== null) {
+    speed = (e.speed * 3.6).toFixed(1); 
+  }
+
+  updateInfoBox(speed);
 });
 
-// FMI tuuli
+// Päivitä infoBox
+function updateInfoBox(speed){
+  const box = document.getElementById("infoBox");
+  box.innerHTML = 
+    "Tuuli: " + currentWind + "<br>" +
+    "Nopeus: " + speed + " km/h";
+}
+
+// Tuulitiedot FMI
+let currentWind = "ladataan...";
+
 async function fetchWind(){
   const url = "https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::observations::weather::simple&fmisid=101004"; 
   const res = await fetch(url);
@@ -49,12 +72,14 @@ async function fetchWind(){
   if(speedMatch && dirMatch){
     const speed = speedMatch[1];
     const dir = dirMatch[1];
-    document.getElementById("windInfo").innerHTML =
-      "Tuuli: " + speed + " m/s<br>Suunta: " + dir + "°";
+    currentWind = speed + " m/s (" + dir + "°)";
   } else {
-    document.getElementById("windInfo").innerHTML = "Tuulitietoa ei saatavilla";
+    currentWind = "ei dataa";
   }
+
+  updateInfoBox(0);
 }
+
 fetchWind();
 setInterval(fetchWind, 60000);
 </script>
